@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة وقود الديزل</title>
+    <style>
+        * {
+            font-family: 'Arial', sans-serif;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: #f0f4f7;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .stats-box {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-top: 10px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            background: #3498db;
+            color: white;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            width: 200px;
+            margin-left: 10px;
+        }
+
+        .notes {
+            margin-top: 30px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 400px;
+        }
+
+        .modal h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .modal input {
+            width: 100%;
+            margin: 10px 0;
+            padding: 12px;
+        }
+
+        .transaction-list {
+            margin-top: 25px;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+
+        .transaction-item {
+            padding: 15px;
+            background: #f8f9fa;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        .error-msg {
+            color: #e74c3c;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 style="color: #2c3e50; text-align: center;">نظام إدارة وقود الديزل</h2>
+        
+        <!-- إحصائيات المخزون -->
+        <div class="stats-box">
+            <div class="stat-item">
+                <div>إجمالي الكميات</div>
+                <div class="stat-value" id="totalQuantity">6040</div>
+            </div>
+            <div class="stat-item">
+                <div>المتبقي من الكميه</div>
+                <div class="stat-value" id="remainingQuantity">5131.0</div>
+            </div>
+            <div class="stat-item">
+                <div>إجمالي الاستهلاك</div>
+                <div class="stat-value" id="totalConsumption">909.0</div>
+            </div>
+        </div>
+
+        <!-- إضافة كميات جديدة -->
+        <div class="action-buttons">
+            <input type="number" id="newQuantity" placeholder="أدخل الكمية الجديدة">
+            <button onclick="addQuantity()">حفظ الكمية</button>
+        </div>
+
+        <!-- أزرار التحكم -->
+        <div class="action-buttons">
+            <button onclick="showConsumptionModal()">حساب الاستهلاك اليومي</button>
+            <button onclick="showDetails()">عرض البيان التفصيلي</button>
+        </div>
+
+        <!-- البيان التفصيلي -->
+        <div class="transaction-list" id="transactionsList"></div>
+
+        <!-- ملاحظات -->
+        <div class="notes">
+            <h4>ملاحظاتي:</h4>
+            <textarea id="notesField"></textarea>
+        </div>
+    </div>
+
+    <!-- نافذة حساب الاستهلاك -->
+    <div id="consumptionModal" class="modal">
+        <h3>حساب الاستهلاك اليومي</h3>
+        <div class="error-msg" id="calcError"></div>
+        <input type="number" id="previousReading" placeholder="القراءة السابقة (لتر)">
+        <input type="number" id="currentReading" placeholder="القراءة الحالية (لتر)">
+        <div class="action-buttons">
+            <button onclick="calculateConsumption()" style="background: #27ae60;">احسب</button>
+            <button onclick="closeModal()" style="background: #e74c3c;">إلغاء</button>
+        </div>
+    </div>
+
+    <script>
+        let data = {
+            total: 6040,
+            remaining: 5131,
+            consumed: 909,
+            transactions: []
+        };
+
+        // إضافة كمية جديدة
+        function addQuantity() {
+            const newQtyInput = document.getElementById('newQuantity');
+            const newQty = parseFloat(newQtyInput.value);
+            
+            if (newQty > 0) {
+                data.total += newQty;
+                data.remaining += newQty;
+                
+                // تسجيل الحركة
+                data.transactions.push({
+                    type: 'إضافة',
+                    amount: newQty,
+                    date: new Date().toLocaleString('ar-EG')
+                });
+                
+                updateDisplay();
+                newQtyInput.value = '';
+            } else {
+                showError('الرجاء إدخال كمية صحيحة');
+            }
+        }
+
+        // حساب الاستهلاك
+        function calculateConsumption() {
+            const prev = parseFloat(document.getElementById('previousReading').value);
+            const current = parseFloat(document.getElementById('currentReading').value);
+            const errorMsg = document.getElementById('calcError');
+            
+            if(!prev || !current) {
+                showError('الرجاء ملء جميع الحقول', errorMsg);
+                return;
+            }
+            
+            if(current <= prev) {
+                showError('القراءة الحالية يجب أن تكون أكبر من السابقة', errorMsg);
+                return;
+            }
+            
+            const diff = current - prev;
+            const consumption = diff * 9.09;
+            
+            data.consumed += consumption;
+            data.remaining -= consumption;
+            
+            // تسجيل حركة الاستهلاك
+            data.transactions.push({
+                type: 'استهلاك',
+                amount: consumption.toFixed(2),
+                date: new Date().toLocaleString('ar-EG')
+            });
+            
+            updateDisplay();
+            closeModal();
+        }
+
+        // عرض النافذة المنبثقة
+        function showConsumptionModal() {
+            document.getElementById('consumptionModal').style.display = 'block';
+            document.getElementById('calcError').style.display = 'none';
+            document.getElementById('previousReading').value = '';
+            document.getElementById('currentReading').value = '';
+        }
+
+        function closeModal() {
+            document.getElementById('consumptionModal').style.display = 'none';
+        }
+
+        // تحديث الواجهة
+        function updateDisplay() {
+            document.getElementById('totalQuantity').textContent = data.total;
+            document.getElementById('remainingQuantity').textContent = data.remaining.toFixed(1);
+            document.getElementById('totalConsumption').textContent = data.consumed.toFixed(1);
+            
+            // تحديث البيان التفصيلي
+            const list = document.getElementById('transactionsList');
+            list.innerHTML = '<h4>الحركات الأخيرة:</h4>';
+            data.transactions.forEach(t => {
+                list.innerHTML += `
+                    <div class="transaction-item">
+                        <b>${t.date}</b><br>
+                        ${t.type} - الكمية: ${t.amount} لتر
+                    </div>
+                `;
+            });
+        }
+
+        // عرض التفاصيل
+        function showDetails() {
+            alert(`تفاصيل المخزون:
+الإجمالي: ${data.total} لتر
+المتبقي: ${data.remaining.toFixed(1)} لتر
+المستهلك: ${data.consumed.toFixed(1)} لتر`);
+        }
+
+        // إظهار الأخطاء
+        function showError(msg, element = null) {
+            if(element) {
+                element.textContent = msg;
+                element.style.display = 'block';
+            } else {
+                alert(msg);
+            }
+        }
+
+        // التهيئة الأولية
+        updateDisplay();
+    </script>
+</body>
+</html>
